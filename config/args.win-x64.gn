@@ -1,0 +1,6 @@
+import("//electron/build/args/release.gn")
+
+target_cpu = "x64"
+is_component_build = false
+symbol_level = 1
+use_remoteexec = false

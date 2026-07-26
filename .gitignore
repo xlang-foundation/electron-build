@@ -1,0 +1,25 @@
+# Chromium/gclient checkout and direct workspace aliases. The checkout
+# contains its own repositories; aliases are recreated by bootstrap.ps1.
+/.chromium/
+/electron/
+/chrome/
+/third_party/
+
+# Generated build and distribution data.
+/out/
+/artifacts/
+
+# gclient/depot_tools state.
+/.gclient_entries
+/.gclient_previous_custom_vars
+/.gclient_previous_sync_commits
+/.cipd/
+/.vpython-root/
+/.task_template_packages/
+
+# Local IDE and diagnostic output.
+/.vs/
+__pycache__/
+*.py[cod]
+*.log
+*.tmp
