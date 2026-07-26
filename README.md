@@ -42,6 +42,17 @@ CantorAI/
 `-- xlang/
 ```
 
+Create that sibling checkout from the XLang repository before running the
+build:
+
+```powershell
+git clone https://github.com/CantorAI/xlang.git D:\CantorAI\xlang
+```
+
+The checkout must contain the commit recorded in `config/xlang.ref`; it may be
+on any branch because the build validates the exact commit rather than a
+branch name. Pass `-XLangRoot` to the scripts when using another location.
+
 No application or product-specific modules are part of this repository.
 
 ## Pinned sources
@@ -106,6 +117,9 @@ original Electron distribution remains untouched.
 
 ```powershell
 .\scripts\test.ps1
+
+# Also validate and launch the version-specific packaged distribution.
+.\scripts\test.ps1 -VerifyPackage
 ```
 
 The test driver runs:
@@ -114,6 +128,8 @@ The test driver runs:
 2. The native C ABI smoke test, including XLang import, object access, events,
    `on`/`off`, and shutdown.
 3. The built Electron executable against the main-process JavaScript facade.
+4. With `-VerifyPackage`, checksum/ZIP validation followed by the same smoke
+   against an isolated extraction using packaged default XLang discovery.
 
 The YAML module and native event module are test-only. Production packages
 contain only the bridge, XLang engine, and XLang license notices.
@@ -123,6 +139,24 @@ contain only the bridge, XLang engine, and XLang license notices.
 Windows artifacts are written to `artifacts/win32-x64/`. Names contain the
 built Electron version plus short Electron and XLang revision IDs. Every ZIP
 has a sibling `.sha256` file.
+
+The build first creates the ZIP pair in a unique directory below
+`out/package-staging/win32-x64/`. It publishes the pair only after the unit,
+native bridge, build-tree Electron, and isolated packaged-distribution checks
+pass. A failed run removes its own staging directory and does not replace any
+previously published artifact. The next lock-owning build also reclaims
+abandoned, run-named staging directories left by a terminated process.
+Consequently, `-SkipTests`, `-SkipXLang`, `-SkipBridge`, and `-SkipElectron`
+can only be used together with `-SkipPackage`.
+
+To revalidate the newest artifact for the pinned revisions, or select an exact
+version, run:
+
+```powershell
+.\scripts\verify-package.ps1
+.\scripts\verify-package.ps1 `
+  -VersionFile .\.chromium\src\out\XLangRelease\version
+```
 
 The injected runtime layout is:
 

@@ -37,6 +37,11 @@ def runtime_prefix(platform: str) -> PurePosixPath:
     return PurePosixPath("resources/xlang")
 
 
+def runtime_engine_name(platform: str, source: Path) -> str:
+    prefix = "" if platform == "win32" else "lib"
+    return f"{prefix}xlang_eng{source.suffix}"
+
+
 def _zip_info(name: str) -> ZipInfo:
     info = ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
     info.compress_type = ZIP_DEFLATED
@@ -93,7 +98,7 @@ def create_distribution(
             prefix
             / f"electron_xlang_bridge{Path(files['bridge']).suffix}"
         ): files["bridge"],
-        str(prefix / f"xlang_eng{Path(files['engine']).suffix}"): files["engine"],
+        str(prefix / runtime_engine_name(platform, files["engine"])): files["engine"],
     }
     if "license" in files:
         archive_sources[str(prefix / "LICENSE")] = files["license"]

@@ -2,6 +2,8 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { app, xlang } = require('electron/main')
 
+app.disableHardwareAcceleration()
+
 function requiredPath(name) {
   const value = process.env[name]
   if (!value) {
@@ -10,18 +12,35 @@ function requiredPath(name) {
   return path.resolve(value)
 }
 
+function optionalPath(name) {
+  const value = process.env[name]
+  return value ? path.resolve(value) : undefined
+}
+
 async function run() {
-  const runtimeDirectory = requiredPath('XLANG_RUNTIME_DIR')
-  const bridgePath = requiredPath('XLANG_BRIDGE_PATH')
+  assert.equal(typeof xlang.initialize, 'function')
+  assert.equal(typeof xlang.importModule, 'function')
+  assert.equal(typeof xlang.shutdown, 'function')
+
+  const runtimeDirectory = optionalPath('XLANG_RUNTIME_DIR')
+  const bridgePath = optionalPath('XLANG_BRIDGE_PATH')
   const testModulePath = requiredPath('XLANG_TEST_MODULE')
+  if ((runtimeDirectory === undefined) !== (bridgePath === undefined)) {
+    throw new Error(
+      'XLANG_RUNTIME_DIR and XLANG_BRIDGE_PATH must either both be set or both be omitted'
+    )
+  }
   let testModule
 
   try {
-    await xlang.initialize({
-      libraryPath: bridgePath,
-      appPath: runtimeDirectory,
+    const initializeOptions = {
       librarySearchPaths: [path.dirname(testModulePath)]
-    })
+    }
+    if (runtimeDirectory && bridgePath) {
+      initializeOptions.libraryPath = bridgePath
+      initializeOptions.appPath = runtimeDirectory
+    }
+    await xlang.initialize(initializeOptions)
     testModule = await xlang.importModule('bridge_event_test', {
       fromPath: testModulePath
     })

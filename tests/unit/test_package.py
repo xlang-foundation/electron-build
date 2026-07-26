@@ -79,6 +79,29 @@ class PackageTests(unittest.TestCase):
                 "Electron.app/Contents/Resources/xlang/electron_xlang_bridge.dylib",
                 archive.namelist(),
             )
+            self.assertIn(
+                "Electron.app/Contents/Resources/xlang/libxlang_eng.dylib",
+                archive.namelist(),
+            )
+
+    def test_preserves_unix_engine_library_prefix(self) -> None:
+        output = self.root / "electron-xlang-linux.zip"
+        bridge = self.root / "electron_xlang_bridge.so"
+        engine = self.root / "libxlang_eng.so"
+        bridge.write_bytes(b"bridge")
+        engine.write_bytes(b"engine")
+        PACKAGE.create_distribution(
+            dist_zip=self.dist,
+            output_zip=output,
+            platform="linux",
+            files={"bridge": bridge, "engine": engine},
+        )
+
+        with ZipFile(output) as archive:
+            self.assertIn(
+                "resources/xlang/electron_xlang_bridge.so", archive.namelist()
+            )
+            self.assertIn("resources/xlang/libxlang_eng.so", archive.namelist())
 
     def test_rejects_existing_runtime_entry(self) -> None:
         with ZipFile(self.dist, "a") as archive:

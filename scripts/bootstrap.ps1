@@ -32,6 +32,22 @@ try {
         Invoke-CheckedCommand -FilePath 'git.exe' -Arguments @(
             'config', '--global', 'core.longpaths', 'true'
         ) -WorkingDirectory $workspace
+
+        $requiredSafeDirectories = @(
+            $sourceRoot.Replace('\', '/'),
+            $electronRoot.Replace('\', '/')
+        )
+        $safeDirectories = @(
+            & git.exe config --global --get-all safe.directory 2>$null
+        )
+        foreach ($safeDirectory in $requiredSafeDirectories) {
+            if ($safeDirectories -notcontains $safeDirectory) {
+                Invoke-CheckedCommand -FilePath 'git.exe' -Arguments @(
+                    'config', '--global', '--add',
+                    'safe.directory', $safeDirectory
+                ) -WorkingDirectory $workspace
+            }
+        }
     }
     else {
         $longPaths = @(& git.exe config --global --get core.longpaths 2>$null)
@@ -81,8 +97,9 @@ try {
     Invoke-CheckedCommand -FilePath $gclient -Arguments @(
         'sync',
         '--force',
-        '--with_branch_heads',
-        '--with_tags',
+        # Every source is pinned by Electron's DEPS file. Avoid cloning the
+        # complete multi-year history of Chromium and each nested dependency.
+        '--no-history',
         '--revision', "src/electron@$electronRevision"
     ) -WorkingDirectory $chromiumWorkspace
 

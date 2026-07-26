@@ -324,6 +324,9 @@ function Set-ChromiumBuildEnvironment {
         $env:Path = "$DepotToolsRoot;$env:Path"
     }
     $env:DEPOT_TOOLS = $DepotToolsRoot
+    # A build must not mutate its toolchain mid-run. Update depot_tools
+    # explicitly outside this pipeline, then keep bootstrap/build reproducible.
+    $env:DEPOT_TOOLS_UPDATE = '0'
     $env:DEPOT_TOOLS_WIN_TOOLCHAIN = '0'
     $env:ELECTRON_DEPOT_TOOLS_WIN_TOOLCHAIN = '0'
     $env:ELECTRON_USE_THREE_WAY_MERGE_FOR_PATCHES = '1'

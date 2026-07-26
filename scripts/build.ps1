@@ -29,17 +29,121 @@ $resolvedXLangRoot = Resolve-XLangRoot -RequestedRoot $XLangRoot
 $electronRevision = Get-PinnedRevision -Name electron
 $xlangRevision = Get-PinnedRevision -Name xlang
 $shortElectronRevision = $electronRevision.Substring(0, 7)
-$electronVersion = "0.0.0-xlang.$shortElectronRevision"
+# Electron's Windows resource template uses the final prerelease identifier
+# as the numeric fourth FILEVERSION component.
+$electronVersion = "0.0.0-xlang.$shortElectronRevision.0"
 $platform = 'win32-x64'
 $xlangBuild = Join-Path $workspace "out\xlang\$platform"
 $bridgeBuild = Join-Path $workspace "out\bridge\$platform"
 $runtimeDirectory = Join-Path $workspace "out\runtime\$platform"
 $electronBuild = Join-Path $sourceRoot "out\$Configuration"
 $artifactDirectory = Join-Path $workspace "artifacts\$platform"
+$packageStagingRoot = Join-Path $workspace "out\package-staging\$platform"
+$packageStagingDirectory = $null
+if (-not $SkipPackage) {
+    $runIdentifier = "$PID-$([Guid]::NewGuid().ToString('N'))"
+    $packageStagingDirectory = Join-Path $packageStagingRoot $runIdentifier
+}
+if ($SkipTests -and -not $SkipPackage) {
+    throw '-SkipTests cannot be combined with packaging because only tested packages are published.'
+}
+if (-not $SkipPackage -and ($SkipXLang -or $SkipBridge -or $SkipElectron)) {
+    throw (
+        '-SkipXLang, -SkipBridge, and -SkipElectron require -SkipPackage ' +
+        'because published artifacts must be rebuilt from the pinned sources.'
+    )
+}
+
+function Remove-RunPackageStaging {
+    if ($null -eq $packageStagingDirectory -or
+        -not (Test-Path -LiteralPath $packageStagingDirectory -PathType Container)) {
+        return
+    }
+
+    $resolvedStaging = [System.IO.Path]::GetFullPath($packageStagingDirectory)
+    $resolvedStagingRoot = [System.IO.Path]::GetFullPath($packageStagingRoot)
+    $stagingPrefix = $resolvedStagingRoot.TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    ) + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $resolvedStaging.StartsWith(
+        $stagingPrefix,
+        [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Warning "Refusing to clean package staging outside $resolvedStagingRoot"
+        return
+    }
+
+    try {
+        Remove-Item -LiteralPath $resolvedStaging -Recurse -Force
+    }
+    catch {
+        Write-Warning "Could not clean package staging $resolvedStaging`: $_"
+    }
+}
+
+function Remove-AbandonedPackageStaging {
+    if (-not (Test-Path -LiteralPath $packageStagingRoot -PathType Container)) {
+        return
+    }
+
+    $resolvedStagingRoot = [System.IO.Path]::GetFullPath($packageStagingRoot)
+    $candidates = @(
+        Get-ChildItem -LiteralPath $resolvedStagingRoot -Directory -ErrorAction Stop
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate.Name -notmatch '^(?<pid>[0-9]+)-[0-9a-fA-F]{32}$') {
+            continue
+        }
+        $ownerProcessId = 0
+        if (-not [int]::TryParse(
+            $Matches['pid'],
+            [ref]$ownerProcessId)) {
+            continue
+        }
+        if ($null -ne (Get-Process -Id $ownerProcessId -ErrorAction SilentlyContinue)) {
+            continue
+        }
+        if (($candidate.Attributes -band
+            [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Write-Warning "Refusing to clean reparse-point staging $($candidate.FullName)"
+            continue
+        }
+
+        $resolvedCandidate = [System.IO.Path]::GetFullPath(
+            $candidate.FullName)
+        $candidateParent = [System.IO.Path]::GetDirectoryName(
+            $resolvedCandidate)
+        if (-not $candidateParent.Equals(
+            $resolvedStagingRoot,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Warning "Refusing to clean package staging outside $resolvedStagingRoot"
+            continue
+        }
+        if ($null -ne $packageStagingDirectory -and
+            $resolvedCandidate.Equals(
+                [System.IO.Path]::GetFullPath($packageStagingDirectory),
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+
+        try {
+            Remove-Item -LiteralPath $resolvedCandidate -Recurse -Force
+        }
+        catch {
+            Write-Warning "Could not clean abandoned staging $resolvedCandidate`: $_"
+        }
+    }
+}
+
 $lock = Enter-WorkspaceLock -Name workspace
 $runTests = -not $SkipTests
+$savedElectronOutDir = [Environment]::GetEnvironmentVariable(
+    'ELECTRON_OUT_DIR',
+    'Process')
+$env:ELECTRON_OUT_DIR = $Configuration
 
 try {
+    Remove-AbandonedPackageStaging
     Assert-RepositoryRevision `
         -Repository $electronRoot `
         -ExpectedRevision $electronRevision `
@@ -152,9 +256,15 @@ try {
         Invoke-CheckedCommand -FilePath $gn -Arguments @(
             'gen', "out\$Configuration"
         ) -WorkingDirectory $sourceRoot
-        Invoke-CheckedCommand -FilePath $autoninja -Arguments @(
-            '-C', "out\$Configuration", 'electron:electron_dist_zip'
-        ) -WorkingDirectory $sourceRoot
+        $autoninjaArguments = @('-C', "out\$Configuration")
+        if ($Jobs -gt 0) {
+            $autoninjaArguments += @('-j', "$Jobs")
+        }
+        $autoninjaArguments += 'electron:electron_dist_zip'
+        Invoke-CheckedCommand `
+            -FilePath $autoninja `
+            -Arguments $autoninjaArguments `
+            -WorkingDirectory $sourceRoot
     }
 
     if (-not $SkipPackage) {
@@ -178,7 +288,7 @@ try {
             '--electron-ref', (Join-Path $workspace 'config\electron.ref'),
             '--xlang-ref', (Join-Path $workspace 'config\xlang.ref'),
             '--version-file', $versionFile,
-            '--output-dir', $artifactDirectory,
+            '--output-dir', $packageStagingDirectory,
             '--platform', 'win32',
             '--arch', 'x64'
         )
@@ -188,32 +298,52 @@ try {
             -WorkingDirectory $workspace
     }
 }
+catch {
+    Remove-RunPackageStaging
+    throw
+}
 finally {
+    [Environment]::SetEnvironmentVariable(
+        'ELECTRON_OUT_DIR',
+        $savedElectronOutDir,
+        'Process')
     if ($null -ne $lock) {
         $lock.Dispose()
     }
 }
 
-if ($runTests) {
-    $testArguments = @(
-        '-NoProfile',
-        '-ExecutionPolicy', 'Bypass',
-        '-File', (Join-Path $PSScriptRoot 'test.ps1'),
-        '-XLangRoot', $resolvedXLangRoot,
-        '-Configuration', $Configuration
-    )
-    if ($SkipElectron) {
-        $testArguments += '-SkipElectron'
+try {
+    if ($runTests) {
+        $testArguments = @(
+            '-NoProfile',
+            '-ExecutionPolicy', 'Bypass',
+            '-File', (Join-Path $PSScriptRoot 'test.ps1'),
+            '-XLangRoot', $resolvedXLangRoot,
+            '-Configuration', $Configuration
+        )
+        if ($SkipElectron) {
+            $testArguments += '-SkipElectron'
+        }
+        if (-not $SkipPackage) {
+            $testArguments += @(
+                '-VerifyPackage',
+                '-PackageArtifactDirectory', $packageStagingDirectory,
+                '-PublishPackage'
+            )
+        }
+        & powershell.exe @testArguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Test suite failed with exit code $LASTEXITCODE."
+        }
     }
-    & powershell.exe @testArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Test suite failed with exit code $LASTEXITCODE."
+
+    Write-Host ''
+    Write-Host 'Electron XLang build completed.'
+    Write-Host "  Runtime staging: $runtimeDirectory"
+    if (-not $SkipPackage) {
+        Write-Host "  Artifacts:       $artifactDirectory"
     }
 }
-
-Write-Host ''
-Write-Host 'Electron XLang build completed.'
-Write-Host "  Runtime staging: $runtimeDirectory"
-if (-not $SkipPackage) {
-    Write-Host "  Artifacts:       $artifactDirectory"
+finally {
+    Remove-RunPackageStaging
 }

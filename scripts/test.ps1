@@ -3,13 +3,25 @@ param(
     [string]$XLangRoot,
     [ValidateSet('XLangRelease')]
     [string]$Configuration = 'XLangRelease',
-    [switch]$SkipElectron
+    [switch]$SkipElectron,
+    [switch]$VerifyPackage,
+    [string]$PackageArtifactDirectory,
+    [switch]$PublishPackage
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 if ($env:OS -ne 'Windows_NT') {
     throw 'The current test driver supports Windows x64.'
+}
+if ($PublishPackage -and -not $VerifyPackage) {
+    throw '-PublishPackage requires -VerifyPackage.'
+}
+if ($PackageArtifactDirectory -and -not $VerifyPackage) {
+    throw '-PackageArtifactDirectory requires -VerifyPackage.'
+}
+if ($PublishPackage -and [string]::IsNullOrWhiteSpace($PackageArtifactDirectory)) {
+    throw '-PublishPackage requires a staging -PackageArtifactDirectory.'
 }
 
 $workspace = Get-WorkspaceRoot
@@ -88,6 +100,53 @@ try {
             $env:XLANG_BRIDGE_PATH = $savedBridge
             $env:XLANG_TEST_MODULE = $savedModule
         }
+    }
+
+    if ($VerifyPackage) {
+        $versionFile = Join-Path $electronBuild 'version'
+        if (-not (Test-Path -LiteralPath $versionFile -PathType Leaf)) {
+            throw "Electron version output was not found: $versionFile"
+        }
+
+        $verifyArtifactDirectory = $PackageArtifactDirectory
+        if ([string]::IsNullOrWhiteSpace($verifyArtifactDirectory)) {
+            $verifyArtifactDirectory = Join-Path $workspace 'artifacts\win32-x64'
+        }
+        if ($PublishPackage) {
+            $resolvedStaging = [System.IO.Path]::GetFullPath(
+                $verifyArtifactDirectory)
+            $stagingRoot = [System.IO.Path]::GetFullPath(
+                (Join-Path $workspace 'out\package-staging\win32-x64'))
+            $stagingPrefix = $stagingRoot.TrimEnd(
+                [System.IO.Path]::DirectorySeparatorChar,
+                [System.IO.Path]::AltDirectorySeparatorChar
+            ) + [System.IO.Path]::DirectorySeparatorChar
+            if (-not $resolvedStaging.StartsWith(
+                $stagingPrefix,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Refusing to publish outside package staging: $resolvedStaging"
+            }
+        }
+
+        $verifyArguments = @($python.Prefix) + @(
+            (Join-Path $workspace 'scripts\verify_package.py'),
+            '--artifact-dir', $verifyArtifactDirectory,
+            '--version-file', $versionFile,
+            '--electron-ref', (Join-Path $workspace 'config\electron.ref'),
+            '--xlang-ref', (Join-Path $workspace 'config\xlang.ref'),
+            '--smoke-app', (Join-Path $workspace 'tests\xlang-smoke'),
+            '--test-module', $eventModule
+        )
+        if ($PublishPackage) {
+            $verifyArguments += @(
+                '--publish-dir',
+                (Join-Path $workspace 'artifacts\win32-x64')
+            )
+        }
+        Invoke-CheckedCommand `
+            -FilePath $python.FilePath `
+            -Arguments $verifyArguments `
+            -WorkingDirectory $workspace
     }
 
     Write-Host 'All requested Electron XLang tests passed.'
