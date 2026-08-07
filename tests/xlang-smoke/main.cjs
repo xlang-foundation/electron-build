@@ -45,6 +45,17 @@ async function run() {
       fromPath: testModulePath
     })
 
+    const queuedWait = testModule.call('wait_until_blocked', [500])
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    const directStartedAt = performance.now()
+    assert.equal(testModule.callSync('echo', ['direct-call']), 'direct-call')
+    const directElapsed = performance.now() - directStartedAt
+    assert.ok(
+      directElapsed < 150,
+      `callSync waited behind the asynchronous worker queue (${directElapsed.toFixed(1)}ms)`
+    )
+    assert.equal(await queuedWait, false)
+
     let eventCount = 0
     let listener
     const received = new Promise((resolve, reject) => {
