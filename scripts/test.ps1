@@ -26,8 +26,8 @@ if ($PublishPackage -and [string]::IsNullOrWhiteSpace($PackageArtifactDirectory)
 
 $workspace = Get-WorkspaceRoot
 $sourceRoot = Get-ChromiumSourceRoot
-$xlangBuild = Join-Path $workspace 'out\xlang\win32-x64'
-$bridgeBuild = Join-Path $workspace 'out\bridge\win32-x64'
+$xlangBuild = Join-Path (Split-Path -Parent $workspace) 'out\build\x64-Release\bin'
+$bridgeBuild = $xlangBuild
 $electronBuild = Join-Path $sourceRoot "out\$Configuration"
 $lock = Enter-WorkspaceLock -Name workspace
 
@@ -42,34 +42,24 @@ try {
         )) `
         -WorkingDirectory $workspace
 
-    $xlangEngine = Find-SingleBuildOutput `
-        -Root $xlangBuild `
-        -Names @('xlang_eng.dll') `
-        -Label 'XLang engine'
-    $xlangYaml = Find-SingleBuildOutput `
-        -Root $xlangBuild `
-        -Names @('xlang_yaml.dll') `
-        -Label 'XLang YAML test module'
-    $bridge = Find-SingleBuildOutput `
-        -Root $bridgeBuild `
-        -Names @('electron_xlang_bridge.dll') `
-        -Label 'Electron XLang bridge'
-    $smoke = Find-SingleBuildOutput `
-        -Root $bridgeBuild `
-        -Names @('electron_xlang_bridge_smoke.exe') `
-        -Label 'native bridge smoke executable'
-    $eventModule = Find-SingleBuildOutput `
-        -Root $bridgeBuild `
-        -Names @('xlang_bridge_event_test.dll') `
-        -Label 'XLang bridge event test module'
+    $xlangEngine = Join-Path $xlangBuild 'xlang3_runtime.dll'
+    $xlangYaml = Join-Path $xlangBuild 'modules/xlang_yaml.x3pkg.dll'
+    $bridge = Join-Path $bridgeBuild 'electron_xlang_bridge.dll'
+    $smoke = Join-Path $bridgeBuild 'electron_xlang_bridge_smoke.exe'
+    $eventModule = Join-Path $bridgeBuild 'xlang_bridge_event_test.dll'
+    foreach ($artifact in @($bridge, $smoke, $eventModule)) {
+        if (!(Test-Path -LiteralPath $artifact -PathType Leaf)) {
+            throw "Required workspace Release artifact not found: $artifact"
+        }
+    }
 
     $smokeDirectory = Split-Path -Parent $smoke
     if ((Split-Path -Parent $bridge) -ne $smokeDirectory -or
         (Split-Path -Parent $eventModule) -ne $smokeDirectory) {
         throw 'The bridge, event test module, and native smoke executable must be built beside one another.'
     }
-    if ((Split-Path -Parent $xlangEngine) -ne (Split-Path -Parent $xlangYaml)) {
-        throw 'xlang_eng and xlang_yaml must be staged in the same runtime directory.'
+    if (!(Test-Path -LiteralPath $xlangEngine) -or !(Test-Path -LiteralPath $xlangYaml)) {
+        throw 'Build the workspace Release XLang3 runtime and YAML module first.'
     }
 
     Invoke-CheckedCommand `

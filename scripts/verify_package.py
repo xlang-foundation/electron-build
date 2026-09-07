@@ -31,7 +31,7 @@ CHECKSUM_PATTERN = re.compile(
 REQUIRED_FILES = (
     "electron.exe",
     "resources/xlang/electron_xlang_bridge.dll",
-    "resources/xlang/xlang_eng.dll",
+    "resources/xlang/xlang3_runtime.dll",
     "resources/xlang/LICENSE",
     "resources/xlang/NOTICE",
 )

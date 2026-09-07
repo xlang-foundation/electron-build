@@ -33,12 +33,13 @@ $shortElectronRevision = $electronRevision.Substring(0, 7)
 # as the numeric fourth FILEVERSION component.
 $electronVersion = "0.0.0-xlang.$shortElectronRevision.0"
 $platform = 'win32-x64'
-$xlangBuild = Join-Path $workspace "out\xlang\$platform"
-$bridgeBuild = Join-Path $workspace "out\bridge\$platform"
-$runtimeDirectory = Join-Path $workspace "out\runtime\$platform"
+$cantorRoot = Split-Path -Parent $workspace
+$xlangBuild = Join-Path $cantorRoot "out\build\x64-Release\bin"
+$bridgeBuild = $xlangBuild
+$runtimeDirectory = Join-Path $cantorRoot "out\electron-runtime\$platform"
 $electronBuild = Join-Path $sourceRoot "out\$Configuration"
-$artifactDirectory = Join-Path $workspace "artifacts\$platform"
-$packageStagingRoot = Join-Path $workspace "out\package-staging\$platform"
+$artifactDirectory = Join-Path $cantorRoot "out\electron-artifacts\$platform"
+$packageStagingRoot = Join-Path $cantorRoot "out\electron-package-staging\$platform"
 $packageStagingDirectory = $null
 if (-not $SkipPackage) {
     $runIdentifier = "$PID-$([Guid]::NewGuid().ToString('N'))"
@@ -169,63 +170,29 @@ try {
         $parallelArguments += "$Jobs"
     }
 
-    if (-not $SkipXLang) {
-        Invoke-CheckedCommand -FilePath $cmake -Arguments @(
-            '-S', $resolvedXLangRoot,
-            '-B', $xlangBuild,
-            '-G', 'Ninja',
-            "-DCMAKE_MAKE_PROGRAM=$ninja",
-            '-DCMAKE_BUILD_TYPE=Release'
-        ) -WorkingDirectory $workspace
-        Invoke-CheckedCommand -FilePath $cmake -Arguments (
-            @('--build', $xlangBuild, '--target', 'xlang_eng', 'xlang_yaml') +
-            $parallelArguments
-        ) -WorkingDirectory $workspace
+    if (-not $SkipXLang -or -not $SkipBridge) {
+        & (Join-Path $cantorRoot 'CantorAIWorkspace/dev/tools/Build/build_project.ps1') `
+            -Root $cantorRoot -BuildType Release -CantorOnly -WithGalaxy `
+            -WithPrincipia -WithGarnet -WithElectronBridge `
+            -Target @('electron_xlang_bridge_smoke', 'xlang_yaml_native_package')
+        if ($LASTEXITCODE -ne 0) { throw 'XLang3 workspace build failed' }
     }
+    $xlangEngine = Join-Path $xlangBuild 'xlang3_runtime.dll'
+    $xlangYaml = Join-Path $xlangBuild 'modules/xlang_yaml.x3pkg.dll'
 
-    $xlangEngine = Find-SingleBuildOutput `
-        -Root $xlangBuild `
-        -Names @('xlang_eng.dll') `
-        -Label 'XLang engine'
-    $xlangYaml = Find-SingleBuildOutput `
-        -Root $xlangBuild `
-        -Names @('xlang_yaml.dll') `
-        -Label 'XLang YAML test module'
-
-    if (-not $SkipBridge) {
-        Invoke-CheckedCommand -FilePath $cmake -Arguments @(
-            '-S', (Join-Path $electronRoot 'xlang_bridge'),
-            '-B', $bridgeBuild,
-            '-G', 'Ninja',
-            "-DCMAKE_MAKE_PROGRAM=$ninja",
-            '-DCMAKE_BUILD_TYPE=Release',
-            '-DBUILD_TESTING=ON',
-            "-DXLANG_ROOT=$resolvedXLangRoot"
-        ) -WorkingDirectory $workspace
-        Invoke-CheckedCommand -FilePath $cmake -Arguments (
-            @(
-                '--build', $bridgeBuild,
-                '--target',
-                'electron_xlang_bridge',
-                'electron_xlang_bridge_smoke',
-                'xlang_bridge_event_test'
-            ) + $parallelArguments
-        ) -WorkingDirectory $workspace
+    $bridge = Join-Path $bridgeBuild 'electron_xlang_bridge.dll'
+    $eventModule = Join-Path $bridgeBuild 'xlang_bridge_event_test.dll'
+    foreach ($artifact in @($bridge, $eventModule, $xlangEngine, $xlangYaml)) {
+        if (!(Test-Path -LiteralPath $artifact -PathType Leaf)) {
+            throw "Required workspace Release artifact not found: $artifact"
+        }
     }
-
-    $bridge = Find-SingleBuildOutput `
-        -Root $bridgeBuild `
-        -Names @('electron_xlang_bridge.dll') `
-        -Label 'Electron XLang bridge'
-    $eventModule = Find-SingleBuildOutput `
-        -Root $bridgeBuild `
-        -Names @('xlang_bridge_event_test.dll') `
-        -Label 'XLang bridge event test module'
 
     if (Test-Path -LiteralPath $runtimeDirectory -PathType Container) {
         $resolvedRuntime = [System.IO.Path]::GetFullPath($runtimeDirectory)
-        $resolvedOut = [System.IO.Path]::GetFullPath((Join-Path $workspace 'out'))
-        if (-not $resolvedRuntime.StartsWith($resolvedOut, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $resolvedOut = [System.IO.Path]::GetFullPath((Join-Path $cantorRoot 'out'))
+        $outPrefix = $resolvedOut.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        if (-not $resolvedRuntime.StartsWith($outPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
             throw "Refusing to replace runtime directory outside the workspace output: $resolvedRuntime"
         }
         Remove-Item -LiteralPath $runtimeDirectory -Recurse -Force

@@ -39,7 +39,7 @@ def runtime_prefix(platform: str) -> PurePosixPath:
 
 def runtime_engine_name(platform: str, source: Path) -> str:
     prefix = "" if platform == "win32" else "lib"
-    return f"{prefix}xlang_eng{source.suffix}"
+    return f"{prefix}xlang3_runtime{source.suffix}"
 
 
 def _zip_info(name: str) -> ZipInfo:

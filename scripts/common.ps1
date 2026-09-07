@@ -140,7 +140,7 @@ function Resolve-XLangRoot {
 
     if ([string]::IsNullOrWhiteSpace($RequestedRoot)) {
         $workspaceParent = Split-Path -Parent (Get-WorkspaceRoot)
-        $RequestedRoot = Join-Path $workspaceParent 'xlang'
+        $RequestedRoot = Join-Path $workspaceParent 'xlang3'
     }
 
     $fullPath = [System.IO.Path]::GetFullPath($RequestedRoot)

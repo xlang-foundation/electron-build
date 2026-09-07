@@ -184,7 +184,7 @@ class VerifyPackageTests(unittest.TestCase):
 
     def test_rejects_case_insensitive_duplicate(self) -> None:
         with ZipFile(self.archive, "a") as archive:
-            archive.writestr("Resources/XLANG/XLANG_ENG.DLL", b"duplicate")
+            archive.writestr("Resources/XLANG/XLANG3_RUNTIME.DLL", b"duplicate")
 
         with self.assertRaisesRegex(
             VERIFY.VerificationError, "case-insensitive duplicate"
@@ -224,8 +224,8 @@ class VerifyPackageTests(unittest.TestCase):
         VERIFY.extract_archive(self.archive, destination, infos)
 
         self.assertEqual(
-            (destination / "resources/xlang/xlang_eng.dll").read_bytes(),
-            b"resources/xlang/xlang_eng.dll",
+            (destination / "resources/xlang/xlang3_runtime.dll").read_bytes(),
+            b"resources/xlang/xlang3_runtime.dll",
         )
         with self.assertRaisesRegex(VERIFY.VerificationError, "already exists"):
             VERIFY.extract_archive(self.archive, destination, infos)

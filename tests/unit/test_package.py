@@ -25,7 +25,7 @@ class PackageTests(unittest.TestCase):
             archive.writestr("electron.exe", b"electron")
 
         self.bridge = self.root / "electron_xlang_bridge.dll"
-        self.engine = self.root / "xlang_eng.dll"
+        self.engine = self.root / "xlang3_runtime.dll"
         self.license = self.root / "LICENSE"
         self.notice = self.root / "NOTICE"
         self.bridge.write_bytes(b"bridge")
@@ -57,7 +57,7 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(
                 archive.read("resources/xlang/electron_xlang_bridge.dll"), b"bridge"
             )
-            self.assertEqual(archive.read("resources/xlang/xlang_eng.dll"), b"engine")
+            self.assertEqual(archive.read("resources/xlang/xlang3_runtime.dll"), b"engine")
             self.assertEqual(archive.read("resources/xlang/LICENSE"), b"license")
             self.assertEqual(archive.read("resources/xlang/NOTICE"), b"notice")
 
@@ -80,14 +80,14 @@ class PackageTests(unittest.TestCase):
                 archive.namelist(),
             )
             self.assertIn(
-                "Electron.app/Contents/Resources/xlang/libxlang_eng.dylib",
+                "Electron.app/Contents/Resources/xlang/libxlang3_runtime.dylib",
                 archive.namelist(),
             )
 
     def test_preserves_unix_engine_library_prefix(self) -> None:
         output = self.root / "electron-xlang-linux.zip"
         bridge = self.root / "electron_xlang_bridge.so"
-        engine = self.root / "libxlang_eng.so"
+        engine = self.root / "libxlang3_runtime.so"
         bridge.write_bytes(b"bridge")
         engine.write_bytes(b"engine")
         PACKAGE.create_distribution(
@@ -101,7 +101,7 @@ class PackageTests(unittest.TestCase):
             self.assertIn(
                 "resources/xlang/electron_xlang_bridge.so", archive.namelist()
             )
-            self.assertIn("resources/xlang/libxlang_eng.so", archive.namelist())
+            self.assertIn("resources/xlang/libxlang3_runtime.so", archive.namelist())
 
     def test_rejects_existing_runtime_entry(self) -> None:
         with ZipFile(self.dist, "a") as archive:
