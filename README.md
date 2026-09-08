@@ -96,6 +96,22 @@ The resulting archive is staged at
 On an older Intel Xcode host, set `MAC_SDK_PATH` to a macOS 15 SDK directory
 before running the build script.
 
+Linux ARM64 uses the same pinned WebRTC revision and can be cross-compiled on
+an x86-64 Linux host:
+
+```bash
+./scripts/bootstrap_linux.sh
+./scripts/build_webrtc_linux_arm64.sh
+```
+
+The resulting archive and matching headers are staged under
+`out/deps/linux-arm64-release/webrtc`.
+
+Published WebRTC SDKs are stored as GitHub Release assets instead of in Git
+history. `config/webrtc.artifacts.json` pins each platform bundle to its
+release tag, byte size, and SHA-256 digest so workspace builds can download
+and verify the exact SDK before use.
+
 ## Build
 
 From a PowerShell prompt:
