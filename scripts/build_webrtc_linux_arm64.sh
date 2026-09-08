@@ -87,6 +87,10 @@ if ! file "$first_object" | grep -Eq 'ARM aarch64|ARM64'; then
   exit 1
 fi
 rm -f "$first_object"
+if LC_ALL=C grep --binary-files=text -q '\.crel' "$staged_library.tmp"; then
+  echo "WebRTC archive contains experimental CREL relocations." >&2
+  exit 1
+fi
 mv "$staged_library.tmp" "$staged_library"
 
 rm -rf "$stage_include_dir"

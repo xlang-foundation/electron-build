@@ -7,8 +7,8 @@
   "artifacts": {
     "linux-arm64-release": {
       "asset": "webrtc-linux-arm64-release.tar.gz",
-      "sha256": "f63bcb71fd51c0eee7e64564ee02aaa1795fd45c2cabe73f792d1d0f779ad766",
-      "size_bytes": 112353625
+      "sha256": "1f186ff8ad7ff990330821ba0e7184608a3d3a37c94cfda1d07471ed05426878",
+      "size_bytes": 113628941
     }
   }
 }
