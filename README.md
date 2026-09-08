@@ -82,6 +82,20 @@ The current PowerShell driver intentionally selects Visual Studio 2022. The
 bridge and package layout are cross-platform, while macOS and Linux build
 drivers can be added without changing the C ABI.
 
+An Intel or Apple Silicon Mac can bootstrap Electron's pinned standalone WebRTC
+revision and build an Apple Silicon release archive:
+
+```bash
+./scripts/bootstrap_macos.sh
+./scripts/build_webrtc_macos.sh
+```
+
+The source and object trees remain under the CantorAI root `out` directory.
+The resulting archive is staged at
+`out/deps/macos-arm64-release/webrtc/lib/libwebrtc.a`.
+On an older Intel Xcode host, set `MAC_SDK_PATH` to a macOS 15 SDK directory
+before running the build script.
+
 ## Build
 
 From a PowerShell prompt:
