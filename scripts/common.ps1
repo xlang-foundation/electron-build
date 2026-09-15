@@ -191,10 +191,16 @@ function Resolve-VisualStudioRoot {
     if (-not [string]::IsNullOrWhiteSpace($RequestedRoot)) {
         $candidates.Add($RequestedRoot)
     }
+    if (-not [string]::IsNullOrWhiteSpace($env:vs2026_install)) {
+        $candidates.Add($env:vs2026_install)
+    }
     if (-not [string]::IsNullOrWhiteSpace($env:vs2022_install)) {
         $candidates.Add($env:vs2022_install)
     }
     if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles})) {
+        $candidates.Add((Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\18\Community'))
+        $candidates.Add((Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\18\Professional'))
+        $candidates.Add((Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\18\Enterprise'))
         $candidates.Add((Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\2022\Community'))
         $candidates.Add((Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\2022\Professional'))
         $candidates.Add((Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\2022\Enterprise'))
@@ -204,7 +210,7 @@ function Resolve-VisualStudioRoot {
     if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
         $detected = Invoke-CapturedCommand -FilePath $vswhere -Arguments @(
             '-latest',
-            '-version', '[17.0,18.0)',
+            '-version', '[17.0,19.0)',
             '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
             '-property', 'installationPath'
         )
@@ -224,7 +230,7 @@ function Resolve-VisualStudioRoot {
         }
     }
 
-    throw 'A Visual Studio 2022 installation with the C++ workload was not found.'
+    throw 'A Visual Studio 2022 or 2026 installation with the C++ workload was not found.'
 }
 
 function Import-VisualStudioEnvironment {
@@ -330,7 +336,10 @@ function Set-ChromiumBuildEnvironment {
     $env:DEPOT_TOOLS_WIN_TOOLCHAIN = '0'
     $env:ELECTRON_DEPOT_TOOLS_WIN_TOOLCHAIN = '0'
     $env:ELECTRON_USE_THREE_WAY_MERGE_FOR_PATCHES = '1'
+    # Chromium uses the historical vs2022_install variable name even when a
+    # newer compatible Visual Studio toolchain is selected explicitly.
     $env:vs2022_install = $VisualStudioRoot
+    $env:vs2026_install = $VisualStudioRoot
 
     if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) {
         $windowsSdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
