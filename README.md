@@ -83,11 +83,13 @@ bridge and package layout are cross-platform, while macOS and Linux build
 drivers can be added without changing the C ABI.
 
 An Intel or Apple Silicon Mac can bootstrap Electron's pinned standalone WebRTC
-revision and build an Apple Silicon release archive:
+revision and build Intel or Apple Silicon release archives:
 
 ```bash
 ./scripts/bootstrap_macos.sh
 ./scripts/build_webrtc_macos.sh
+# Intel: use a separate checkout/object tree and stage macos-x86-release.
+WEBRTC_MAC_ARCH=x86_64 ./scripts/build_webrtc_macos.sh
 ```
 
 The source and object trees remain under the CantorAI root `out` directory.
