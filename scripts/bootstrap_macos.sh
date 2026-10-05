@@ -2,17 +2,25 @@
 set -euo pipefail
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "This bootstrap requires macOS; it prepares an Apple Silicon target." >&2
+  echo "This bootstrap requires macOS." >&2
   exit 1
 fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 workspace="$(cd -- "$script_dir/.." && pwd)"
 component_root="$(cd -- "$workspace/.." && pwd)"
-state_root="$component_root/out/electron-build/macos-arm64"
+target_arch="${WEBRTC_MAC_ARCH:-arm64}"
+case "$target_arch" in
+  arm64) platform=macos-arm64; gn_arch=arm64 ;;
+  x86_64|x64) platform=macos-x86; target_arch=x86_64; gn_arch=x64 ;;
+  *) echo "Unsupported Mac architecture: $target_arch" >&2; exit 2 ;;
+esac
+export WEBRTC_MAC_ARCH="$target_arch"
+state_root="$component_root/out/electron-build/$platform"
 checkout_root="$state_root/webrtc-standalone"
-source_root="$checkout_root/src"
-depot_tools="$state_root/depot_tools"
+source_root="${WEBRTC_SOURCE_ROOT:-$checkout_root/src}"
+checkout_root="$(dirname "$source_root")"
+depot_tools="${WEBRTC_DEPOT_TOOLS_ROOT:-$state_root/depot_tools}"
 webrtc_revision="$(tr -d '[:space:]' < "$workspace/config/webrtc.ref")"
 
 mkdir -p "$state_root" "$checkout_root"
