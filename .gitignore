@@ -1,9 +1,9 @@
 # Chromium/gclient checkout and direct workspace aliases. The checkout
 # contains its own repositories; aliases are recreated by bootstrap.ps1.
 /.chromium/
-/electron/
-/chrome/
-/third_party/
+/electron
+/chrome
+/third_party
 
 # Generated build and distribution data.
 /out/
