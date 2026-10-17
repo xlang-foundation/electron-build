@@ -1,15 +1,15 @@
 [CmdletBinding()]
 param(
     [string]$XLangRoot,
-    [ValidatePattern('^[0-9a-fA-F]{40}$')]
-    [string]$XLangRevision,
     [string]$DepotToolsRoot,
     [string]$VisualStudioRoot,
     [string]$ElectronRepository = 'https://github.com/xlang-foundation/electron.git',
     [switch]$ConfigureGit,
     [switch]$SkipSync,
     [switch]$AllowDirtyElectron,
-    [switch]$AllowDirtyXLang
+    [switch]$AllowDirtyXLang,
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$XLangRevision
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')

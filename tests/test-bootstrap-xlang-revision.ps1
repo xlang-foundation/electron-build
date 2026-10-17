@@ -59,6 +59,7 @@ try {
     if (-not $taskRejected) { throw 'A mutable branch name was accepted instead of a full SHA' }
     Invoke-FixtureGit $taskXLang @('checkout','--quiet','--detach',$taskDefault) | Out-Null
     & $taskBootstrap -XLangRoot $taskXLang -SkipSync -ConfigureGit
+    & $taskBootstrap $taskXLang 'unused-depot' 'unused-vs' -SkipSync -ConfigureGit
     Write-Output 'bootstrap_xlang_revision_contract=PASS; explicit exact pin, mismatch rejection, immutable input, standalone default preserved; no native build or network sync'
 }
 finally {
