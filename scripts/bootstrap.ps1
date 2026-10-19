@@ -7,7 +7,9 @@ param(
     [switch]$ConfigureGit,
     [switch]$SkipSync,
     [switch]$AllowDirtyElectron,
-    [switch]$AllowDirtyXLang
+    [switch]$AllowDirtyXLang,
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$XLangRevision
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -22,7 +24,11 @@ $sourceRoot = Get-ChromiumSourceRoot
 $electronRoot = Join-Path $sourceRoot 'electron'
 $resolvedXLangRoot = Resolve-XLangRoot -RequestedRoot $XLangRoot
 $electronRevision = Get-PinnedRevision -Name electron
-$xlangRevision = Get-PinnedRevision -Name xlang
+$xlangRevision = if (-not [string]::IsNullOrWhiteSpace($XLangRevision)) {
+    $XLangRevision.ToLowerInvariant()
+} else {
+    Get-PinnedRevision -Name xlang
+}
 $lock = Enter-WorkspaceLock -Name workspace
 
 try {
