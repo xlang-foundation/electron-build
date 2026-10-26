@@ -10,3 +10,7 @@ rtc_build_examples = false
 rtc_build_tools = false
 rtc_include_tests = false
 use_unified_system_module = false
+# Cloud cameras negotiate H.264; the standalone default omits its decoder.
+proprietary_codecs = true
+rtc_use_h264 = true
+ffmpeg_branding = "Chrome"
